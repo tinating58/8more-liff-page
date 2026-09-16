@@ -595,6 +595,28 @@
     });
   }
   var liffReady = initLiff();
+  liffReady.then(checkStatus);
+
+  function checkStatus(profile){
+    if(!profile || !profile.userId) return;
+    fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'status', lineUserId: profile.userId })
+    }).then(function(r){ return r.json(); }).then(function(res){
+      if(!res || !res.found) return;
+      document.getElementById('home-nickname').textContent = res.nickname;
+      document.getElementById('mine-nickname').textContent = res.nickname;
+      if(res.status === '已核准'){
+        state.verify = 'approved';
+        document.getElementById('mine-status-line').textContent = '已完成驗證：'+res.phone;
+      } else {
+        state.verify = 'pending';
+        document.getElementById('mine-status-line').textContent = '審核中：'+res.phone;
+      }
+      updateVerifyBanner();
+    }).catch(function(){ /* 查詢失敗就維持預設畫面，不影響其他功能 */ });
+  }
 
   window.showTab = function(id){
     document.getElementById('app').classList.remove('flow');
@@ -738,10 +760,18 @@
 
   function updateVerifyBanner(){
     var b = document.getElementById('verify-banner');
-    if(state.verify==='pending'){
+    if(state.verify==='approved'){
+      b.classList.add('pending');
+      b.querySelector('.t').innerHTML = '<b>身份驗證已完成</b>快去簽到、轉盤賺八魔幣吧！';
+      b.querySelector('button').style.display='none';
+    } else if(state.verify==='pending'){
       b.classList.add('pending');
       b.querySelector('.t').innerHTML = '<b>審核中</b>我們將透過 LINE 通知您審核結果';
       b.querySelector('button').style.display='none';
+    } else {
+      b.classList.remove('pending');
+      b.querySelector('.t').innerHTML = '<b>完成身份驗證</b>綁定手機即可開始累積點數';
+      b.querySelector('button').style.display='';
     }
   }
 
