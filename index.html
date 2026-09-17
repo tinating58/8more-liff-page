@@ -354,9 +354,9 @@
     <div class="greet-bar">
         <div>
           <div class="hi">你好，</div>
-          <div class="name" id="home-nickname">晨光</div>
+          <div class="name" id="home-nickname">會員</div>
         </div>
-        <div class="pt-pill"><span class="n" id="home-points">680</span><span class="u">pt</span></div>
+        <div class="pt-pill"><span class="n" id="home-points">0</span><span class="u">pt</span></div>
       </div>
     <div class="verify-banner" id="verify-banner">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 3 6v6c0 5 4 8 9 10 5-2 9-5 9-10V6l-9-4Z"/></svg>
@@ -468,7 +468,7 @@
         <div class="sun"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></div>
         <div>
           <div class="lbl">已連續登入</div>
-          <div class="num"><span id="streak-days">6</span> 天</div>
+          <div class="num"><span id="streak-days">0</span> 天</div>
         </div>
       </div>
       <button class="go-btn" id="checkin-btn" onclick="doCheckin()">今日簽到</button>
@@ -491,7 +491,7 @@
     <div class="wheel-meta">
       <div class="cell">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M9 10h6M9 14h4"/></svg>
-        <div><div class="v">50 pt</div><div class="k">花費點數</div></div>
+        <div><div class="v">10 pt</div><div class="k">花費點數</div></div>
       </div>
       <div class="cell">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 12v8H4v-8M2 8h20v4H2zM12 8v12M12 8c-1.5-3-6-4-6-1.2 0 1.4 2 1.2 6 1.2ZM12 8c1.5-3 6-4 6-1.2 0 1.4-2 1.2-6 1.2Z"/></svg>
@@ -521,13 +521,13 @@
     <div class="profile-head">
       <div class="avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4.5 5-6 8-6s6.5 1.5 8 6"/></svg></div>
       <div>
-        <div class="name" id="mine-nickname">晨光</div>
+        <div class="name" id="mine-nickname">會員</div>
         <div class="mid">會員編號 8M000123</div>
       </div>
     </div>
 
     <div class="card pt-card">
-      <div><div class="n" id="mine-points">680</div><div class="k">我的點數</div></div>
+      <div><div class="n" id="mine-points">0</div><div class="k">我的點數</div></div>
       <button class="btn-secondary" style="width:auto;padding:10px 16px" onclick="showToast('點數紀錄功能開發中')">點數記錄</button>
     </div>
 
@@ -916,11 +916,13 @@
     acc = 0;
     wheelSlices.forEach(function(s){
       var mid = acc + s.span/2;
+      var radius = s.span < 10 ? 100 : (s.span < 20 ? 90 : 84);
+      var scale = s.span < 20 ? 0.72 : 1;
       var label = document.createElement('div');
       label.className = 'seg-label';
       label.style.color = s.dark ? 'var(--ink)' : '#fff';
       label.style.textShadow = s.dark ? 'none' : '0 1px 2px rgba(0,0,0,.18)';
-      label.style.transform = 'rotate('+mid+'deg) translate(84px) rotate('+(-mid)+'deg)';
+      label.style.transform = 'rotate('+mid+'deg) translate('+radius+'px) rotate('+(-mid)+'deg) scale('+scale+')';
       label.innerHTML = '<span class="v">'+s.v+'</span><span class="u">pt</span>';
       disc.appendChild(label);
       acc += s.span;
