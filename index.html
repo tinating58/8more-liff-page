@@ -596,10 +596,11 @@
 
 <script>
 (function(){
-  var state = { verify:'unverified', points:680, streak:6, checkedInToday:false, spinsLeft:3 };
+  var state = { verify:'unverified', points:0, streak:0, checkedInToday:false, spinsLeft:5 };
   var liffProfile = null;
+  var spinInProgress = false;
   var LIFF_ID = '2011596505-H2bKVJfY';
-  var BACKEND_URL = 'https://script.google.com/macros/s/AKfycbz95OEYWG1hg6CXaHSsRpxb-JqZjtWMkhwSwvg7RbnY_DGdiiRaMRoY2l19sNUNBRZJtA/exec';
+  var BACKEND_URL = 'https://script.google.com/macros/s/AKfycbyDESmqVC6iH3-BVTbCQ0rDgj1qK-GpciWCIfcKZyTTcosDcnWU4VLDhI7zbyHmnQvEYg/exec';
 
   function initLiff(){
     if(typeof liff === 'undefined'){ return Promise.resolve(null); }
@@ -616,6 +617,7 @@
   }
   var liffReady = initLiff();
   liffReady.then(checkStatus);
+  liffReady.then(fetchGameStatus);
 
   function checkStatus(profile){
     if(!profile || !profile.userId) return;
@@ -636,6 +638,39 @@
       }
       updateVerifyBanner();
     }).catch(function(){ /* 查詢失敗就維持預設畫面，不影響其他功能 */ });
+  }
+
+  function fetchGameStatus(profile){
+    if(!profile || !profile.userId) return;
+    fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'gamestatus', lineUserId: profile.userId, lineName: profile.displayName || '' })
+    }).then(function(r){ return r.json(); }).then(function(res){
+      if(!res || !res.ok) return;
+      state.points = res.points;
+      state.streak = res.streak;
+      state.checkedInToday = res.checkedInToday;
+      state.spinsLeft = res.spinsLeft;
+      applyGameStateToUi();
+    }).catch(function(){ /* 查詢失敗就維持預設畫面 */ });
+  }
+
+  function applyGameStateToUi(){
+    document.getElementById('home-points').textContent = state.points;
+    document.getElementById('mine-points').textContent = state.points;
+    document.getElementById('streak-days').textContent = state.streak;
+    document.getElementById('spin-left').textContent = state.spinsLeft;
+    var checkinBtn = document.getElementById('checkin-btn');
+    if(state.checkedInToday){
+      checkinBtn.textContent = '今日已簽到';
+      checkinBtn.disabled = true;
+    } else {
+      checkinBtn.textContent = '立即簽到';
+      checkinBtn.disabled = false;
+    }
+    document.getElementById('wheel-go').disabled = state.spinsLeft<=0;
+    buildMilestones();
   }
 
   window.showTab = function(id){
@@ -797,16 +832,46 @@
 
   window.doCheckin = function(){
     if(state.checkedInToday) return;
-    state.checkedInToday = true;
-    state.streak += 1;
-    state.points += 10;
-    document.getElementById('streak-days').textContent = state.streak;
-    document.getElementById('checkin-btn').textContent = '今日已簽到';
-    document.getElementById('checkin-btn').disabled = true;
-    document.getElementById('home-points').textContent = state.points;
-    document.getElementById('mine-points').textContent = state.points;
-    buildMilestones();
-    openSheet('checkin-modal');
+    var btn = document.getElementById('checkin-btn');
+    btn.disabled = true;
+    btn.textContent = '簽到中…';
+
+    liffReady.then(function(profile){
+      if(!profile || !profile.userId){
+        btn.disabled = false;
+        btn.textContent = '立即簽到';
+        showToast('請在 LINE App 內開啟本頁面以完成簽到');
+        return;
+      }
+      fetch(BACKEND_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action:'checkin', lineUserId: profile.userId, lineName: profile.displayName || '' })
+      }).then(function(r){ return r.json(); }).then(function(res){
+        if(!res || !res.ok){
+          if(res && res.checkedInToday){
+            state.checkedInToday = true;
+            state.points = res.points;
+            state.streak = res.streak;
+            applyGameStateToUi();
+          } else {
+            btn.disabled = false;
+            btn.textContent = '立即簽到';
+          }
+          showToast((res && res.error) || '簽到失敗，請稍後再試');
+          return;
+        }
+        state.checkedInToday = true;
+        state.points = res.points;
+        state.streak = res.streak;
+        applyGameStateToUi();
+        openSheet('checkin-modal');
+      }).catch(function(){
+        btn.disabled = false;
+        btn.textContent = '立即簽到';
+        showToast('簽到失敗，請稍後再試');
+      });
+    });
   };
 
   var milestoneData = [
@@ -863,32 +928,59 @@
   }
 
   window.spinWheel = function(){
-    if(state.spinsLeft<=0) return;
-    state.spinsLeft -= 1;
-    document.getElementById('spin-left').textContent = state.spinsLeft;
-    document.getElementById('wheel-go').disabled = state.spinsLeft<0;
+    if(state.spinsLeft<=0 || spinInProgress) return;
+    spinInProgress = true;
+    var goBtn = document.getElementById('wheel-go');
+    goBtn.disabled = true;
 
-    var r = Math.random()*360;
-    var acc = 0, chosen = wheelSlices[0];
-    for(var i=0;i<wheelSlices.length;i++){
-      if(r>=acc && r<acc+wheelSlices[i].span){ chosen = wheelSlices[i]; break; }
-      acc += wheelSlices[i].span;
-    }
-    var mid = acc + chosen.span/2;
-    var target = 360*4 - mid;
-    totalRotation += 360*4 + (target - (totalRotation%360));
-    var disc = document.getElementById('wheel-disc');
-    disc.style.transform = 'rotate('+totalRotation+'deg)';
+    liffReady.then(function(profile){
+      if(!profile || !profile.userId){
+        spinInProgress = false;
+        goBtn.disabled = state.spinsLeft<=0;
+        showToast('請在 LINE App 內開啟本頁面以進行抽獎');
+        return;
+      }
+      fetch(BACKEND_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action:'spin', lineUserId: profile.userId, lineName: profile.displayName || '' })
+      }).then(function(r){ return r.json(); }).then(function(res){
+        if(!res || !res.ok){
+          spinInProgress = false;
+          goBtn.disabled = state.spinsLeft<=0;
+          showToast((res && res.error) || '抽獎失敗，請稍後再試');
+          return;
+        }
+        state.spinsLeft = res.spinsLeft;
+        document.getElementById('spin-left').textContent = state.spinsLeft;
 
-    setTimeout(function(){
-      state.points += chosen.v;
-      document.getElementById('home-points').textContent = state.points;
-      document.getElementById('mine-points').textContent = state.points;
-      document.getElementById('wheel-result').textContent = '+'+chosen.v;
-      document.getElementById('wheel-result-sub').textContent = '本次抽獎獲得 '+chosen.v+' 點，好運正在靠近你！';
-      openSheet('wheel-modal');
-      if(state.spinsLeft<=0) document.getElementById('wheel-go').disabled = true;
-    }, 4300);
+        var acc = 0, chosen = wheelSlices[0];
+        for(var i=0;i<wheelSlices.length;i++){
+          if(wheelSlices[i].v === res.win){ chosen = wheelSlices[i]; break; }
+          acc += wheelSlices[i].span;
+        }
+        var mid = acc + chosen.span/2;
+        var target = 360*4 - mid;
+        totalRotation += 360*4 + (target - (totalRotation%360));
+        var disc = document.getElementById('wheel-disc');
+        disc.style.transform = 'rotate('+totalRotation+'deg)';
+
+        setTimeout(function(){
+          state.points = res.points;
+          document.getElementById('home-points').textContent = state.points;
+          document.getElementById('mine-points').textContent = state.points;
+          document.getElementById('wheel-result').textContent = '+'+res.win;
+          document.getElementById('wheel-result-sub').textContent = '本次抽獎獲得 '+res.win+' 點，好運正在靠近你！';
+          openSheet('wheel-modal');
+          spinInProgress = false;
+          goBtn.disabled = state.spinsLeft<=0;
+        }, 4300);
+      }).catch(function(){
+        spinInProgress = false;
+        goBtn.disabled = state.spinsLeft<=0;
+        showToast('抽獎失敗，請稍後再試');
+      });
+    });
   };
 
   window.openSheet = function(id){ document.getElementById(id).classList.add('show'); };
